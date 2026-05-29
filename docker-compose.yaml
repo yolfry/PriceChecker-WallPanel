@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  price-checker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: price_checker_app
+    restart: unless-stopped
+    ports:
+      # Toma el puerto del .env, si no existe usa el 8080 por defecto
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - ./:/var/www/html/
+    extra_hosts:
+      # CRÍTICO: Permite conectar al MySQL de tu máquina host
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
