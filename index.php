@@ -1,6 +1,6 @@
 <?php
 
-// Desarrollado por YPW S.R.L 2026 info@clopri.com
+// Desarrollado por Clopri 2026 info@clopri.com
 
 // ========================================================================
 // 1. VARIABLES DE CONFIGURACIÓN (Entorno Docker Compose / .env)
@@ -26,19 +26,13 @@ $appApplyTax = filter_var(getenv('APP_APPLY_TAX') ?: false, FILTER_VALIDATE_BOOL
 // true/false: Define si el precio final se redondeará para no mostrar centavos.
 $appRoundPrice = filter_var(getenv('APP_ROUND_PRICE') ?: false, FILTER_VALIDATE_BOOLEAN);
 
-// -- Configuración de Precio al Detalle (Secundario) --
-$appRetailPriceTier = getenv('APP_RETAIL_PRICE_TIER') ?: 'preciodetalle';
-$appShowRetailPrice = filter_var(getenv('APP_SHOW_RETAIL_PRICE') ?: true, FILTER_VALIDATE_BOOLEAN);
-
 $appNameScrenn = getenv('APP_NAME_SCREEN') ?: 'WallPanel';
-
 
 // ========================================================================
 // Sanitización estricta de columnas
 // ========================================================================
 $allowedPrices = ['precio1', 'precio2', 'precio3', 'precio4', 'preciodetalle', 'preciodetalle2'];
 if (!in_array($appPriceTier, $allowedPrices)) $appPriceTier = 'precio1';
-if (!in_array($appRetailPriceTier, $allowedPrices)) $appRetailPriceTier = 'preciodetalle';
 
 // ========================================================================
 // 2. INICIO DE LA APLICACIÓN (Lógica Nativa)
@@ -90,21 +84,16 @@ if ($api === 'true') {
             $db = new Database($dbHost, $dbUser, $dbPass, $dbName);
             $barcode_safe = $db->escape(trim($barcode));
 
-
-
             //Actualizar este sql y parametros para adaptar al sistema
             $sql = "SELECT p.codigo1 AS barcode, 
                p.descripcion1 AS name, 
                p.impuesto AS tax_percent, 
-               ps.{$appPriceTier} AS main_price,
-               ps.{$appRetailPriceTier} AS retail_price
+               ps.{$appPriceTier} AS main_price
         FROM productos p
         INNER JOIN productos_suc ps ON p.codigo1 = ps.codigo1
         WHERE '$barcode_safe' IN (p.codigo1, p.codigo2, p.codigo3, p.codigo4) 
         AND ps.sucursal = $appBranch 
         LIMIT 1";
-
-
 
             $queryProduct = $db->query($sql);
             if (!$queryProduct) throw new Exception("Error al consultar el producto");
@@ -118,32 +107,27 @@ if ($api === 'true') {
             // Casting de valores
             $taxPercent = floatval($data['tax_percent']);
             $mainPrice = floatval($data['main_price']);
-            $retailPrice = floatval($data['retail_price']);
 
             // Lógica de Impuesto
             $taxApplied = false;
             if ($appApplyTax && $taxPercent > 0) {
                 $mainPrice += $mainPrice * ($taxPercent / 100);
-                $retailPrice += $retailPrice * ($taxPercent / 100);
                 $taxApplied = true;
             }
 
             // Lógica de Redondeo
             if ($appRoundPrice) {
                 $mainPrice = round($mainPrice);
-                $retailPrice = round($retailPrice);
             }
 
             responseOk([
                 'product' => [
                     'barcode' => $data['barcode'],
                     'name' => trim($data['name']),
-                    'price' => $mainPrice,
-                    'retail_price' => $retailPrice
+                    'price' => $mainPrice
                 ],
                 'config' => [
                     'currency' => $appCurrency,
-                    'show_retail' => $appShowRetailPrice,
                     'tax_applied' => $taxApplied,
                     'tax_percent' => $taxPercent,
                     'round_price' => $appRoundPrice
@@ -319,28 +303,8 @@ if ($api === 'true') {
             line-height: 1;
             letter-spacing: -0.04em;
             margin: 0;
-            text-shadow: 0 10px 30px rgba(39, 180, 133, 0.15);
-        }
-
-        /* PRECIO AL DETALLE (SECUNDARIO) ESTILO CLÁSICO */
-        .product-retail-container {
-            margin-top: -1vh;
             margin-bottom: 2vh;
-            display: none;
-            /* Controlado por JS */
-        }
-
-        .retail-label {
-            font-size: clamp(1rem, 3vmin, 1.5rem);
-            font-weight: 600;
-            color: var(--text-muted);
-        }
-
-        .product-retail-price {
-            font-size: clamp(1.5rem, 4vmin, 2.5rem);
-            font-weight: 800;
-            color: var(--text-main);
-            margin-left: 8px;
+            text-shadow: 0 10px 30px rgba(39, 180, 133, 0.15);
         }
 
         .product-name {
@@ -426,12 +390,6 @@ if ($api === 'true') {
 
         <div id="view-product" class="product-view view-section">
             <div id="product-price" class="product-price"></div>
-
-            <div id="product-retail-container" class="product-retail-container">
-                <span class="retail-label">Precio al detalle:</span>
-                <span id="product-retail-price" class="product-retail-price"></span>
-            </div>
-
             <h2 id="product-name" class="product-name"></h2>
         </div>
     </div>
@@ -444,7 +402,6 @@ if ($api === 'true') {
         let resetTimeout = null;
         let configData = {
             currency: 'RD$',
-            show_retail: false,
             tax_applied: false,
             tax_percent: 0,
             round_price: false
@@ -461,9 +418,7 @@ if ($api === 'true') {
             },
             product: {
                 price: document.getElementById('product-price'),
-                name: document.getElementById('product-name'),
-                retailContainer: document.getElementById('product-retail-container'),
-                retailPrice: document.getElementById('product-retail-price')
+                name: document.getElementById('product-name')
             },
             errorBarcode: document.getElementById('error-barcode'),
             btnReset: document.getElementById('btn-reset')
@@ -534,14 +489,6 @@ if ($api === 'true') {
                 // Llenar datos en el DOM
                 ui.product.price.textContent = formatMoney(product.price);
                 ui.product.name.textContent = product.name;
-
-                // Lógica visual del Precio al Detalle
-                if (configData.show_retail && product.price !== product.retail_price) {
-                    ui.product.retailPrice.textContent = formatMoney(product.retail_price);
-                    ui.product.retailContainer.style.display = 'block';
-                } else {
-                    ui.product.retailContainer.style.display = 'none';
-                }
 
                 switchView('product');
 
