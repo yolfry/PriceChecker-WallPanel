@@ -30,6 +30,9 @@ $appRoundPrice = filter_var(getenv('APP_ROUND_PRICE') ?: false, FILTER_VALIDATE_
 $appRetailPriceTier = getenv('APP_RETAIL_PRICE_TIER') ?: 'preciodetalle';
 $appShowRetailPrice = filter_var(getenv('APP_SHOW_RETAIL_PRICE') ?: true, FILTER_VALIDATE_BOOLEAN);
 
+$appNameScrenn = getenv('APP_NAME_SCREEN') ?: 'WallPanel';
+
+
 // ========================================================================
 // Sanitización estricta de columnas
 // ========================================================================
@@ -162,7 +165,7 @@ if ($api === 'true') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Price Checker WallPanel</title>
+    <title><?php echo $appNameScrenn; ?></title>
 
     <script src="./onscan.min.js"></script>
 
@@ -378,7 +381,7 @@ if ($api === 'true') {
 
 <body>
 
-    <div class="watermark">WallPanel</div>
+    <div class="watermark"><?php echo $appNameScrenn; ?></div>
 
     <div class="app-container">
         <div id="offline-notification" class="offline-notification">
